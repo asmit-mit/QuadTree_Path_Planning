@@ -33,7 +33,7 @@ Below are two visualizations that highlight the difference between a regular gri
 ## Goals of the Experiment
 
 1. **Understand Quadtrees**: Explore their potential in simplifying grid structures for spatial tasks.
-2. **Optimize Path Planning**: Check if integrating quadtrees improves the runtime and efficiency of the A* algorithm.
+2. **Optimize Path Planning**: To check if integrating quadtrees improves the runtime and efficiency of the A* algorithm.
 
 ---
 

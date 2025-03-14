@@ -23,6 +23,8 @@ private:
 
   bool isHomogeneous(std::vector<std::vector<int>> &grid, int x, int y,
                      int width, int height);
+  bool containsObstacle(std::vector<std::vector<int>> &grid, int x, int y,
+                        int width, int height);
   QuadTreeNode *buildRecursive(std::vector<std::vector<int>> &grid, int x,
                                int y, int width, int height, int depth);
   void insertRecursive(QuadTreeNode *node, int x, int y, int value, int depth);
@@ -36,13 +38,16 @@ public:
   QuadTreeNode *root;
 
   QuadTree(int max_depth);
+  QuadTree();
   ~QuadTree();
   void build(std::vector<std::vector<int>> &grid);
   void insert(int x, int y, int value);
   int query(int x, int y);
   void updateLeafNodesList();
   std::vector<QuadTreeNode *> getAdjacentLeafNodes(int x, int y);
+  std::vector<QuadTreeNode *> getLeafNodes();
   int getNumLeaves();
+  void deleteTree();
 };
 
 #endif

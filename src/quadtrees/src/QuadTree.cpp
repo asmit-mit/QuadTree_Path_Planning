@@ -1,5 +1,6 @@
-#include "path_planner/QuadTree.h"
-#include <algorithm>
+#include "quadtrees/QuadTree.h"
+#include <climits>
+#include <unordered_set>
 
 QuadTreeNode::QuadTreeNode(int x, int y, int width, int height, int value,
                            bool is_leaf) {
@@ -26,6 +27,11 @@ QuadTree::QuadTree(int max_depth) {
   root = nullptr;
 }
 
+QuadTree::QuadTree() {
+  root = nullptr;
+  this->max_depth = INT_MAX;
+}
+
 QuadTree::~QuadTree() { delete root; }
 
 bool QuadTree::isHomogeneous(std::vector<std::vector<int>> &grid, int x, int y,
@@ -41,16 +47,34 @@ bool QuadTree::isHomogeneous(std::vector<std::vector<int>> &grid, int x, int y,
   return true;
 }
 
+bool QuadTree::containsObstacle(std::vector<std::vector<int>> &grid, int x,
+                                int y, int width, int height) {
+  for (int i = y; i < y + height; i++) {
+    for (int j = x; j < x + width; j++) {
+      if (grid[i][j] == 100) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 int QuadTree::getNumLeaves() { return leaf_nodes.size(); }
 
 QuadTreeNode *QuadTree::buildRecursive(std::vector<std::vector<int>> &grid,
                                        int x, int y, int width, int height,
                                        int depth) {
-  if (depth >= max_depth || isHomogeneous(grid, x, y, width, height)) {
-    QuadTreeNode *leafNode =
-        new QuadTreeNode(x, y, width, height, grid[y][x], true);
-    leaf_nodes.push_back(leafNode);
-    return leafNode;
+  bool uniformity_flag = isHomogeneous(grid, x, y, width, height);
+  bool contains_obstacle = containsObstacle(grid, x, y, width, height);
+  if (depth >= max_depth || uniformity_flag) {
+    QuadTreeNode *leaf_node;
+    if (contains_obstacle) {
+      leaf_node = new QuadTreeNode(x, y, width, height, 100, true);
+    } else {
+      leaf_node = new QuadTreeNode(x, y, width, height, grid[y][x], true);
+    }
+    leaf_nodes.push_back(leaf_node);
+    return leaf_node;
   }
 
   QuadTreeNode *node = new QuadTreeNode(x, y, width, height, -2, false);
@@ -116,8 +140,15 @@ void QuadTree::insertRecursive(QuadTreeNode *node, int x, int y, int value,
       x >= node->x + node->width)
     return;
 
-  if (node->is_leaf || depth >= max_depth) {
+  if (depth >= max_depth) {
     if (node->is_leaf && node->value != value) {
+      node->value = value;
+    }
+    return;
+  }
+
+  if (node->is_leaf) {
+    if (node->value != value) {
       if (node->width == 1 && node->height > 1) {
         leaf_nodes.erase(
             std::remove(leaf_nodes.begin(), leaf_nodes.end(), node),
@@ -350,18 +381,83 @@ void QuadTree::collectLeafNodes(QuadTreeNode *node,
   }
 }
 
+std::vector<QuadTreeNode *> QuadTree::getLeafNodes() { return leaf_nodes; }
+
+void QuadTree::deleteTree() {
+  delete root;
+  root = nullptr;
+
+  leaf_nodes.clear();
+}
+
 std::vector<QuadTreeNode *> QuadTree::getAdjacentLeafNodes(int x, int y) {
-  QuadTreeNode *targetNode = findLeafNode(root, x, y);
-  if (!targetNode || !targetNode->is_leaf)
+  QuadTreeNode *target_node = findLeafNode(root, x, y);
+  if (!target_node || !target_node->is_leaf)
     return {};
 
-  std::vector<QuadTreeNode *> adjacentNodes;
+  std::vector<QuadTreeNode *> adjacent_nodes;
+  std::unordered_set<QuadTreeNode *> unique_nodes;
 
-  for (QuadTreeNode *node : leaf_nodes) {
-    if (node != targetNode && areNodesAdjacent(node, targetNode)) {
-      adjacentNodes.push_back(node);
+  int left = target_node->x;
+  int right = target_node->x + target_node->width - 1;
+  int top = target_node->y;
+  int bottom = target_node->y + target_node->height - 1;
+
+  if (left > 0) {
+    int y_pos = top;
+    while (y_pos <= bottom) {
+      QuadTreeNode *node = findLeafNode(root, left - 1, y_pos);
+      if (node && node != target_node &&
+          unique_nodes.find(node) == unique_nodes.end()) {
+        adjacent_nodes.push_back(node);
+        unique_nodes.insert(node);
+        y_pos += node->height;
+      } else {
+        y_pos++;
+      }
     }
   }
 
-  return adjacentNodes;
+  int y_pos = top;
+  while (y_pos <= bottom) {
+    QuadTreeNode *node = findLeafNode(root, right + 1, y_pos);
+    if (node && node != target_node &&
+        unique_nodes.find(node) == unique_nodes.end()) {
+      adjacent_nodes.push_back(node);
+      unique_nodes.insert(node);
+      y_pos += node->height;
+    } else {
+      y_pos++;
+    }
+  }
+
+  if (top > 0) {
+    int x_pos = left;
+    while (x_pos <= right) {
+      QuadTreeNode *node = findLeafNode(root, x_pos, top - 1);
+      if (node && node != target_node &&
+          unique_nodes.find(node) == unique_nodes.end()) {
+        adjacent_nodes.push_back(node);
+        unique_nodes.insert(node);
+        x_pos += node->width;
+      } else {
+        x_pos++;
+      }
+    }
+  }
+
+  int x_pos = left;
+  while (x_pos <= right) {
+    QuadTreeNode *node = findLeafNode(root, x_pos, bottom + 1);
+    if (node && node != target_node &&
+        unique_nodes.find(node) == unique_nodes.end()) {
+      adjacent_nodes.push_back(node);
+      unique_nodes.insert(node);
+      x_pos += node->width;
+    } else {
+      x_pos++;
+    }
+  }
+
+  return adjacent_nodes;
 }

@@ -55,12 +55,12 @@ Visualization Manager:
       Class: rviz/Map
       Color Scheme: map
       Draw Behind: false
-      Enabled: true
+      Enabled: false
       Name: Map
       Topic: /map
       Unreliable: false
       Use Timestamp: false
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /quadtree_visualization
@@ -98,7 +98,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 64.27973175048828
+      Distance: 67.25873565673828
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -106,9 +106,9 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 24.458402633666992
-        Y: 24.62682342529297
-        Z: 0.00963140930980444
+        X: 24.737468719482422
+        Y: 24.836807250976562
+        Z: 0.009910929016768932
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -116,7 +116,7 @@ Visualization Manager:
       Near Clip Distance: 0.009999999776482582
       Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
-      Yaw: 3.1437489986419678
+      Yaw: 3.13874888420105
     Saved: ~
 Window Geometry:
   Displays:

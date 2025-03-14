@@ -1,6 +1,0 @@
-<launch>
-  <include file="$(find map_launcher)/launch/map_launcher.launch" />
-  <node name="path_planner_node" pkg="path_planner" type="path_planner_node" output="screen" />
-
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find path_planner)/viz/quad_trees.rviz" output="screen" />
-</launch>

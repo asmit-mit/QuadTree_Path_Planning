@@ -1,4 +1,4 @@
-#include "path_planner/QuadTree.h"
+#include "quadtrees/QuadTree.h"
 #include <nav_msgs/OccupancyGrid.h>
 #include <ros/ros.h>
 #include <std_msgs/ColorRGBA.h>
@@ -10,6 +10,7 @@ using std::vector;
 QuadTree *quad_tree = nullptr;
 ros::Publisher marker_pub;
 std::string global_frame_id = "map";
+nav_msgs::OccupancyGrid::ConstPtr current_map;
 
 std_msgs::ColorRGBA getColorFromValue(int value) {
   std_msgs::ColorRGBA color;
@@ -38,11 +39,19 @@ std_msgs::ColorRGBA getColorFromValue(int value) {
 
 void addLeafNodesToMarkerArray(visualization_msgs::MarkerArray &marker_array,
                                QuadTreeNode *node, int &marker_id,
-                               const std::string &frame_id) {
+                               const std::string &frame_id,
+                               const nav_msgs::OccupancyGrid::ConstPtr &map) {
   if (!node)
     return;
 
   if (node->is_leaf) {
+    float world_x =
+        node->x * map->info.resolution + map->info.origin.position.x;
+    float world_y =
+        node->y * map->info.resolution + map->info.origin.position.y;
+    float world_width = node->width * map->info.resolution;
+    float world_height = node->height * map->info.resolution;
+
     visualization_msgs::Marker fillMarker;
     fillMarker.header.frame_id = frame_id;
     fillMarker.header.stamp = ros::Time::now();
@@ -51,8 +60,8 @@ void addLeafNodesToMarkerArray(visualization_msgs::MarkerArray &marker_array,
     fillMarker.type = visualization_msgs::Marker::CUBE;
     fillMarker.action = visualization_msgs::Marker::ADD;
 
-    fillMarker.pose.position.x = node->x + node->width / 2.0;
-    fillMarker.pose.position.y = node->y + node->height / 2.0;
+    fillMarker.pose.position.x = world_x + world_width / 2.0;
+    fillMarker.pose.position.y = world_y + world_height / 2.0;
     fillMarker.pose.position.z = 0;
 
     fillMarker.pose.orientation.x = 0.0;
@@ -60,13 +69,12 @@ void addLeafNodesToMarkerArray(visualization_msgs::MarkerArray &marker_array,
     fillMarker.pose.orientation.z = 0.0;
     fillMarker.pose.orientation.w = 1.0;
 
-    fillMarker.scale.x = node->width;
-    fillMarker.scale.y = node->height;
+    fillMarker.scale.x = world_width;
+    fillMarker.scale.y = world_height;
     fillMarker.scale.z = 0.01;
 
     fillMarker.color = getColorFromValue(node->value);
     fillMarker.color.a = 0.5;
-
     fillMarker.lifetime = ros::Duration(1.0);
     marker_array.markers.push_back(fillMarker);
 
@@ -77,17 +85,16 @@ void addLeafNodesToMarkerArray(visualization_msgs::MarkerArray &marker_array,
     borderMarker.id = marker_id++;
     borderMarker.type = visualization_msgs::Marker::LINE_LIST;
     borderMarker.action = visualization_msgs::Marker::ADD;
-
-    borderMarker.scale.x = 0.05;
-    borderMarker.color.r = 0.0;
-    borderMarker.color.g = 0.0;
-    borderMarker.color.b = 0.0;
+    borderMarker.scale.x = 0.1;
+    borderMarker.color.r = 1.0;
+    borderMarker.color.g = 1.0;
+    borderMarker.color.b = 1.0;
     borderMarker.color.a = 1.0;
 
-    float x1 = node->x;
-    float y1 = node->y;
-    float x2 = node->x + node->width;
-    float y2 = node->y + node->height;
+    float x1 = world_x;
+    float y1 = world_y;
+    float x2 = world_x + world_width;
+    float y2 = world_y + world_height;
     float z = 0.0;
 
     geometry_msgs::Point p;
@@ -134,21 +141,21 @@ void addLeafNodesToMarkerArray(visualization_msgs::MarkerArray &marker_array,
     for (int i = 0; i < 4; i++) {
       if (node->children[i] != nullptr) {
         addLeafNodesToMarkerArray(marker_array, node->children[i], marker_id,
-                                  frame_id);
+                                  frame_id, map);
       }
     }
   }
 }
 
 void publishQuadTreeVisualization() {
-  if (!quad_tree || !quad_tree->root)
+  if (!quad_tree || !quad_tree->root || !current_map)
     return;
 
   visualization_msgs::MarkerArray marker_array;
   int marker_id = 0;
 
   addLeafNodesToMarkerArray(marker_array, quad_tree->root, marker_id,
-                            global_frame_id);
+                            global_frame_id, current_map);
 
   marker_pub.publish(marker_array);
   ROS_DEBUG("Published QuadTree visualization with %lu markers",
@@ -157,7 +164,9 @@ void publishQuadTreeVisualization() {
 
 void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
   ROS_INFO("Received map metadata:");
-  ROS_INFO("  Width: %d, Height: %d", msg->info.width, msg->info.height);
+  ROS_INFO("Width: %d, Height: %d", msg->info.width, msg->info.height);
+
+  current_map = msg;
 
   int width = msg->info.width;
   int height = msg->info.height;
@@ -173,7 +182,7 @@ void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
   ROS_INFO("Map built successfully.");
 
   if (!quad_tree) {
-    quad_tree = new QuadTree(7);
+    quad_tree = new QuadTree();
   }
   quad_tree->build(grid);
   ROS_INFO("QuadTree built successfully with leaf nodes: %d",
@@ -183,7 +192,7 @@ void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
 }
 
 int main(int argc, char **argv) {
-  ros::init(argc, argv, "path_planner_node");
+  ros::init(argc, argv, "quad_trees_visualizer_node");
   ros::NodeHandle nh;
   ros::NodeHandle private_nh("~");
 

@@ -6,7 +6,7 @@ project(path_planner)
 
 # Find catkin macros and libraries if COMPONENTS list like find_package(catkin
 # REQUIRED COMPONENTS xyz) is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS roscpp)
+find_package(catkin REQUIRED COMPONENTS quadtrees roscpp rospy)
 
 # System dependencies are found with CMake's conventions find_package(Boost
 # REQUIRED COMPONENTS system)
@@ -72,8 +72,8 @@ find_package(catkin REQUIRED COMPONENTS roscpp)
 # projects also need DEPENDS: system dependencies of this project that dependent
 # projects also need
 catkin_package(
-  # INCLUDE_DIRS include LIBRARIES path_planner CATKIN_DEPENDS roscpp DEPENDS
-  # system_lib
+  # INCLUDE_DIRS include LIBRARIES path_planner CATKIN_DEPENDS quadtrees roscpp
+  # rospy DEPENDS system_lib
 )
 
 # ##############################################################################
@@ -151,13 +151,11 @@ include_directories(# include
 # ${PROJECT_NAME}-test) target_link_libraries(${PROJECT_NAME}-test
 # ${PROJECT_NAME}) endif()
 
-catkin_package(INCLUDE_DIRS include)
-
-# Include directories
-include_directories(include ${catkin_INCLUDE_DIRS})
 # Add folders to be run by python nosetests catkin_add_nosetests(test)
 
-add_executable(path_planner_node src/path_planner_node.cpp src/QuadTree.cpp)
+catkin_package(INCLUDE_DIRS include)
 
-# Link the executable to ROS libraries
-target_link_libraries(path_planner_node ${catkin_LIBRARIES})
+include_directories(include ${catkin_INCLUDE_DIRS})
+
+add_executable(path_visualizer_node src/path_visualizer_node.cpp src/astar_planner.cpp)
+target_link_libraries(path_visualizer_node ${catkin_LIBRARIES})
