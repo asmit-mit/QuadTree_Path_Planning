@@ -2,6 +2,8 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <path_planner/AstarPlanner.h>
+#include <path_planner/AstarQuadTreePlanner.h>
+#include <quadtrees/QuadTree.h>
 #include <ros/ros.h>
 #include <string>
 #include <vector>
@@ -10,17 +12,16 @@
 using std::vector;
 
 ros::Publisher marker_pub;
+ros::Publisher quadtree_marker_pub;
 std::string global_frame_id = "map";
 std::vector<std::pair<int, int>> current_path;
+std::vector<std::pair<int, int>> current_path_quadtree;
 std::vector<std::vector<int>> current_grid;
 nav_msgs::OccupancyGrid::ConstPtr current_map;
-bool path_available = false;
 
-void visualizePath() {
-  if (!path_available || current_path.empty() || !current_map) {
-    return;
-  }
+QuadTree *quadtree = nullptr;
 
+void visualizePath(std::vector<std::pair<int, int>> path, ros::Publisher pub) {
   visualization_msgs::MarkerArray marker_array;
 
   visualization_msgs::Marker path_line;
@@ -42,7 +43,7 @@ void visualizePath() {
 
   double half_cell = current_map->info.resolution / 2.0;
 
-  for (const auto &point : current_path) {
+  for (const auto &point : path) {
     geometry_msgs::Point p;
     p.x = point.first * current_map->info.resolution +
           current_map->info.origin.position.x + half_cell;
@@ -62,10 +63,10 @@ void visualizePath() {
   start_point.action = visualization_msgs::Marker::ADD;
 
   start_point.pose.position.x =
-      current_path.front().first * current_map->info.resolution +
+      path.front().first * current_map->info.resolution +
       current_map->info.origin.position.x + half_cell;
   start_point.pose.position.y =
-      current_path.front().second * current_map->info.resolution +
+      path.front().second * current_map->info.resolution +
       current_map->info.origin.position.y + half_cell;
   start_point.pose.position.z = 0.1;
   start_point.pose.orientation.w = 1.0;
@@ -81,11 +82,10 @@ void visualizePath() {
 
   visualization_msgs::Marker end_point = start_point;
   end_point.id = 2;
-  end_point.pose.position.x =
-      current_path.back().first * current_map->info.resolution +
-      current_map->info.origin.position.x + half_cell;
+  end_point.pose.position.x = path.back().first * current_map->info.resolution +
+                              current_map->info.origin.position.x + half_cell;
   end_point.pose.position.y =
-      current_path.back().second * current_map->info.resolution +
+      path.back().second * current_map->info.resolution +
       current_map->info.origin.position.y + half_cell;
 
   end_point.color.r = 1.0;
@@ -96,7 +96,7 @@ void visualizePath() {
   marker_array.markers.push_back(start_point);
   marker_array.markers.push_back(end_point);
 
-  marker_pub.publish(marker_array);
+  pub.publish(marker_array);
 }
 
 void goalCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
@@ -111,17 +111,19 @@ void goalCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
   if (end_x < 0 || end_x >= current_map->info.width || end_y < 0 ||
       end_y >= current_map->info.height) {
     ROS_INFO("Out of bounds pose, cannot plan a path");
+    return;
   }
   ROS_INFO("Map X: %d Y: %d", end_x, end_y);
 
   AstarPlanner planner(current_grid);
+  AstarQuadTreePlanner planenrq(quadtree);
 
   current_path = planner.plan(0, 0, end_x, end_y);
-  path_available = true;
-  ROS_INFO("Planned path with %ld steps", current_path.size());
+  current_path_quadtree = planenrq.plan(0, 0, end_x, end_y);
+  ROS_INFO("General Astar planned path with %ld steps", current_path.size());
+  ROS_INFO("QuadTree Astar planned path with %ld steps",
+           current_path_quadtree.size());
 }
-
-void timerCallback(const ros::TimerEvent &) { visualizePath(); }
 
 void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
   ROS_INFO("Received map metadata:");
@@ -139,13 +141,19 @@ void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
     }
   }
 
+  if (!quadtree) {
+    quadtree = new QuadTree();
+  }
+
+  quadtree->build(grid);
   current_grid = grid;
 
-  ROS_INFO("Map built successfully.");
+  ROS_INFO("Built map with %dx%d in %d node QuadTree.", width, height,
+           quadtree->getNumLeaves());
 }
 
 int main(int argc, char **argv) {
-  ros::init(argc, argv, "path_visualizer_node");
+  ros::init(argc, argv, "astar_path_viz_node");
   ros::NodeHandle nh;
   ros::NodeHandle private_nh("~");
 
@@ -154,9 +162,8 @@ int main(int argc, char **argv) {
   private_nh.param<double>("publish_rate", publish_rate, 10.0);
 
   marker_pub = nh.advertise<visualization_msgs::MarkerArray>("path_markers", 1);
-
-  ros::Timer timer =
-      nh.createTimer(ros::Duration(1.0 / publish_rate), timerCallback);
+  quadtree_marker_pub =
+      nh.advertise<visualization_msgs::MarkerArray>("quadtree_path_markers", 1);
 
   ros::Subscriber map_sub = nh.subscribe("/map", 10, mapCallback);
   ros::Subscriber goal_sub =
@@ -164,6 +171,15 @@ int main(int argc, char **argv) {
 
   ROS_INFO("Path visualizer started. Publishing at %.1f Hz", publish_rate);
 
-  ros::spin();
+  ros::Rate rate(publish_rate);
+  while (ros::ok()) {
+    if (current_path.size() != 0)
+      visualizePath(current_path, marker_pub);
+    if (current_path_quadtree.size() != 0)
+      visualizePath(current_path_quadtree, quadtree_marker_pub);
+    ros::spinOnce();
+    rate.sleep();
+  }
+
   return 0;
 }

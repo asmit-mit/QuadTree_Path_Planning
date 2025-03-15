@@ -1,6 +1,4 @@
 #include "quadtrees/QuadTree.h"
-#include <climits>
-#include <unordered_set>
 
 QuadTreeNode::QuadTreeNode(int x, int y, int width, int height, int value,
                            bool is_leaf) {
