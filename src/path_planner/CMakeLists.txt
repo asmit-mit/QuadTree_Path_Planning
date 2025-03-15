@@ -157,5 +157,5 @@ catkin_package(INCLUDE_DIRS include)
 
 include_directories(include ${catkin_INCLUDE_DIRS})
 
-add_executable(path_visualizer_node src/path_visualizer_node.cpp src/astar_planner.cpp)
+add_executable(path_visualizer_node src/path_visualizer_node.cpp src/AstarPlanner.cpp)
 target_link_libraries(path_visualizer_node ${catkin_LIBRARIES})

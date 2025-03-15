@@ -1,4 +1,4 @@
-#include "path_planner/astar_planner.h"
+#include "path_planner/AstarPlanner.h"
 
 AstarPlanner::Node::Node()
     : x(0), y(0), g_cost(std::numeric_limits<double>::max()),
@@ -43,7 +43,7 @@ double AstarPlanner::heuristic(const Node *a, const Node *b) {
 }
 
 bool AstarPlanner::isValid(int x, int y) {
-  return (x >= 0 && x < width && y >= 0 && y < height && grid[y][x] == 0);
+  return (x >= 0 && x < width && y >= 0 && y < height && grid[y][x] != 100);
 }
 
 std::vector<std::pair<int, int>> AstarPlanner::plan(int start_x, int start_y,
@@ -93,7 +93,8 @@ std::vector<std::pair<int, int>> AstarPlanner::plan(int start_x, int start_y,
         continue;
       }
 
-      double new_g_cost = current->g_cost + 1.0;
+      double movement_cost = (i < 4) ? 1.0 : 1.414;
+      double new_g_cost = current->g_cost + movement_cost;
       Node *neighbor;
 
       if (parent[nx].find(ny) == parent[nx].end()) {

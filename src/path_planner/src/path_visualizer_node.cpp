@@ -1,16 +1,18 @@
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
-#include <path_planner/astar_planner.h>
+#include <path_planner/AstarPlanner.h>
 #include <ros/ros.h>
 #include <string>
 #include <vector>
-#include <visualization_msgs/marker_array.h>
+#include <visualization_msgs/MarkerArray.h>
 
 using std::vector;
 
 ros::Publisher marker_pub;
 std::string global_frame_id = "map";
 std::vector<std::pair<int, int>> current_path;
+std::vector<std::vector<int>> current_grid;
 nav_msgs::OccupancyGrid::ConstPtr current_map;
 bool path_available = false;
 
@@ -19,34 +21,36 @@ void visualizePath() {
     return;
   }
 
-  visualization_msgs::marker_array marker_array;
+  visualization_msgs::MarkerArray marker_array;
 
-  visualization_msgs::Marker pathLine;
-  pathLine.header.frame_id = global_frame_id;
-  pathLine.header.stamp = ros::Time::now();
-  pathLine.ns = "path";
-  pathLine.id = 0;
-  pathLine.type = visualization_msgs::Marker::LINE_STRIP;
-  pathLine.action = visualization_msgs::Marker::ADD;
+  visualization_msgs::Marker path_line;
+  path_line.header.frame_id = global_frame_id;
+  path_line.header.stamp = ros::Time::now();
+  path_line.ns = "path";
+  path_line.id = 0;
+  path_line.type = visualization_msgs::Marker::LINE_STRIP;
+  path_line.action = visualization_msgs::Marker::ADD;
 
-  pathLine.scale.x = 0.05;
+  path_line.scale.x = 0.1;
 
-  pathLine.color.r = 0.0;
-  pathLine.color.g = 1.0;
-  pathLine.color.b = 0.0;
-  pathLine.color.a = 1.0;
+  path_line.color.r = 1.0;
+  path_line.color.g = 0.0;
+  path_line.color.b = 1.0;
+  path_line.color.a = 1.0;
 
-  pathLine.pose.orientation.w = 1.0;
+  path_line.pose.orientation.w = 1.0;
+
+  double half_cell = current_map->info.resolution / 2.0;
 
   for (const auto &point : current_path) {
     geometry_msgs::Point p;
     p.x = point.first * current_map->info.resolution +
-          current_map->info.origin.position.x;
+          current_map->info.origin.position.x + half_cell;
     p.y = point.second * current_map->info.resolution +
-          current_map->info.origin.position.y;
+          current_map->info.origin.position.y + half_cell;
     p.z = 0.1;
 
-    pathLine.points.push_back(p);
+    path_line.points.push_back(p);
   }
 
   visualization_msgs::Marker start_point;
@@ -59,16 +63,16 @@ void visualizePath() {
 
   start_point.pose.position.x =
       current_path.front().first * current_map->info.resolution +
-      current_map->info.origin.position.x;
+      current_map->info.origin.position.x + half_cell;
   start_point.pose.position.y =
       current_path.front().second * current_map->info.resolution +
-      current_map->info.origin.position.y;
+      current_map->info.origin.position.y + half_cell;
   start_point.pose.position.z = 0.1;
   start_point.pose.orientation.w = 1.0;
 
-  start_point.scale.x = 0.2;
-  start_point.scale.y = 0.2;
-  start_point.scale.z = 0.2;
+  start_point.scale.x = 1.0;
+  start_point.scale.y = 1.0;
+  start_point.scale.z = 1.0;
 
   start_point.color.r = 0.0;
   start_point.color.g = 0.0;
@@ -79,20 +83,42 @@ void visualizePath() {
   end_point.id = 2;
   end_point.pose.position.x =
       current_path.back().first * current_map->info.resolution +
-      current_map->info.origin.position.x;
+      current_map->info.origin.position.x + half_cell;
   end_point.pose.position.y =
       current_path.back().second * current_map->info.resolution +
-      current_map->info.origin.position.y;
+      current_map->info.origin.position.y + half_cell;
 
   end_point.color.r = 1.0;
   end_point.color.g = 0.0;
   end_point.color.b = 0.0;
 
-  marker_array.markers.push_back(pathLine);
+  marker_array.markers.push_back(path_line);
   marker_array.markers.push_back(start_point);
   marker_array.markers.push_back(end_point);
 
   marker_pub.publish(marker_array);
+}
+
+void goalCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
+  ROS_INFO("Received Goal data:");
+  ROS_INFO("X: %f Y: %f", msg->pose.position.x, msg->pose.position.y);
+
+  int end_x = (msg->pose.position.x - current_map->info.origin.position.x) /
+              current_map->info.resolution;
+  int end_y = (msg->pose.position.y - current_map->info.origin.position.y) /
+              current_map->info.resolution;
+
+  if (end_x < 0 || end_x >= current_map->info.width || end_y < 0 ||
+      end_y >= current_map->info.height) {
+    ROS_INFO("Out of bounds pose, cannot plan a path");
+  }
+  ROS_INFO("Map X: %d Y: %d", end_x, end_y);
+
+  AstarPlanner planner(current_grid);
+
+  current_path = planner.plan(0, 0, end_x, end_y);
+  path_available = true;
+  ROS_INFO("Planned path with %ld steps", current_path.size());
 }
 
 void timerCallback(const ros::TimerEvent &) { visualizePath(); }
@@ -100,6 +126,7 @@ void timerCallback(const ros::TimerEvent &) { visualizePath(); }
 void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
   ROS_INFO("Received map metadata:");
   ROS_INFO("Width: %d, Height: %d", msg->info.width, msg->info.height);
+  current_map = msg;
 
   int width = msg->info.width;
   int height = msg->info.height;
@@ -112,23 +139,9 @@ void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
     }
   }
 
+  current_grid = grid;
+
   ROS_INFO("Map built successfully.");
-
-  AstarPlanner planner(grid);
-
-  std::vector<std::pair<int, int>> path =
-      planner.plan(0, 0, grid[0].size() - 1, grid.size() - 1);
-
-  ROS_INFO("Planned path with %ld steps.", path.size());
-
-  if (!path.empty()) {
-    current_path = path;
-    current_map = msg;
-    path_available = true;
-    ROS_INFO("Path planning successful, ready for visualization.");
-  } else {
-    ROS_WARN("Path planning failed, no path to visualize.");
-  }
 }
 
 int main(int argc, char **argv) {
@@ -140,13 +153,14 @@ int main(int argc, char **argv) {
   double publish_rate;
   private_nh.param<double>("publish_rate", publish_rate, 10.0);
 
-  marker_pub =
-      nh.advertise<visualization_msgs::marker_array>("path_markers", 1);
+  marker_pub = nh.advertise<visualization_msgs::MarkerArray>("path_markers", 1);
 
   ros::Timer timer =
       nh.createTimer(ros::Duration(1.0 / publish_rate), timerCallback);
 
   ros::Subscriber map_sub = nh.subscribe("/map", 10, mapCallback);
+  ros::Subscriber goal_sub =
+      nh.subscribe("/move_base_simple/goal", 10, goalCallback);
 
   ROS_INFO("Path visualizer started. Publishing at %.1f Hz", publish_rate);
 

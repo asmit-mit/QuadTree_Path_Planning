@@ -1,0 +1,6 @@
+<launch>
+  <include file="$(find map_launcher)/launch/map_launcher.launch" />
+  <node name="path_visualizer_node" pkg="path_planner" type="path_visualizer_node" output="screen" />
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find path_planner)/viz/path_viz.rviz" output="screen" />
+</launch>

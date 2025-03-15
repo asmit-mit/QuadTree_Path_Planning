@@ -228,12 +228,12 @@ void QuadTree::insertRecursive(QuadTreeNode *node, int x, int y, int value,
 
   if (node->width == 1 && node->height > 1) {
     int mid_y = node->y + node->height / 2;
-    int childIndex = (y < mid_y) ? 0 : 1;
-    insertRecursive(node->children[childIndex], x, y, value, depth + 1);
+    int child_index = (y < mid_y) ? 0 : 1;
+    insertRecursive(node->children[child_index], x, y, value, depth + 1);
   } else if (node->height == 1 && node->width > 1) {
     int mid_x = node->x + node->width / 2;
-    int childIndex = (x < mid_x) ? 0 : 1;
-    insertRecursive(node->children[childIndex], x, y, value, depth + 1);
+    int child_index = (x < mid_x) ? 0 : 1;
+    insertRecursive(node->children[child_index], x, y, value, depth + 1);
   } else {
     int mid_x = node->x + node->width / 2;
     int mid_y = node->y + node->height / 2;
@@ -254,6 +254,43 @@ void QuadTree::insertRecursive(QuadTreeNode *node, int x, int y, int value,
     }
 
     insertRecursive(node->children[quadrant], x, y, value, depth + 1);
+  }
+
+  bool node_is_uniform = true;
+  bool all_children_are_leaf = true;
+  int first_value = -2;
+
+  int child_count = 0;
+  for (int i = 0; i < 4; i++) {
+    if (node->children[i]) {
+      child_count++;
+      if (!node->children[i]->is_leaf) {
+        all_children_are_leaf = false;
+        break;
+      }
+
+      if (first_value == -2) {
+        first_value = node->children[i]->value;
+        continue;
+      } else if (node->children[i]->value != first_value) {
+        node_is_uniform = false;
+        break;
+      }
+    }
+  }
+
+  if (child_count > 0 && all_children_are_leaf && node_is_uniform) {
+    for (int i = 0; i < 4; i++) {
+      if (node->children[i]) {
+        std::remove(leaf_nodes.begin(), leaf_nodes.end(), node->children[i]);
+        delete node->children[i];
+        node->children[i] = nullptr;
+      }
+    }
+
+    node->is_leaf = true;
+    node->value = first_value;
+    leaf_nodes.push_back(node);
   }
 }
 
@@ -276,12 +313,12 @@ int QuadTree::queryRecursive(QuadTreeNode *node, int x, int y) {
 
   if (node->width == 1 && node->height > 1) {
     int mid_y = node->y + node->height / 2;
-    int childIndex = (y < mid_y) ? 0 : 1;
-    return queryRecursive(node->children[childIndex], x, y);
+    int child_index = (y < mid_y) ? 0 : 1;
+    return queryRecursive(node->children[child_index], x, y);
   } else if (node->height == 1 && node->width > 1) {
     int mid_x = node->x + node->width / 2;
-    int childIndex = (x < mid_x) ? 0 : 1;
-    return queryRecursive(node->children[childIndex], x, y);
+    int child_index = (x < mid_x) ? 0 : 1;
+    return queryRecursive(node->children[child_index], x, y);
   } else {
     int mid_x = node->x + node->width / 2;
     int mid_y = node->y + node->height / 2;
@@ -313,20 +350,20 @@ int QuadTree::query(int x, int y) {
 }
 
 bool QuadTree::areNodesAdjacent(QuadTreeNode *node1, QuadTreeNode *node2) {
-  bool horizontallyAdjacent = (node1->x + node1->width == node2->x) ||
-                              (node2->x + node2->width == node1->x);
-  bool verticallyAdjacent = (node1->y + node1->height == node2->y) ||
-                            (node2->y + node2->height == node1->y);
+  bool horizontally_adjacent = (node1->x + node1->width == node2->x) ||
+                               (node2->x + node2->width == node1->x);
+  bool vertically_adjacent = (node1->y + node1->height == node2->y) ||
+                             (node2->y + node2->height == node1->y);
 
-  bool shareHorizontalSpace =
+  bool share_horizontal_space =
       std::max(node1->x, node2->x) <
       std::min(node1->x + node1->width, node2->x + node2->width);
-  bool shareVerticalSpace =
+  bool share_vertical_space =
       std::max(node1->y, node2->y) <
       std::min(node1->y + node1->height, node2->y + node2->height);
 
-  return (horizontallyAdjacent && shareVerticalSpace) ||
-         (verticallyAdjacent && shareHorizontalSpace);
+  return (horizontally_adjacent && share_vertical_space) ||
+         (vertically_adjacent && share_horizontal_space);
 }
 
 QuadTreeNode *QuadTree::findLeafNode(QuadTreeNode *node, int x, int y) {
@@ -339,12 +376,12 @@ QuadTreeNode *QuadTree::findLeafNode(QuadTreeNode *node, int x, int y) {
 
   if (node->width == 1 && node->height > 1) {
     int mid_y = node->y + node->height / 2;
-    int childIndex = (y < mid_y) ? 0 : 1;
-    return findLeafNode(node->children[childIndex], x, y);
+    int child_index = (y < mid_y) ? 0 : 1;
+    return findLeafNode(node->children[child_index], x, y);
   } else if (node->height == 1 && node->width > 1) {
     int mid_x = node->x + node->width / 2;
-    int childIndex = (x < mid_x) ? 0 : 1;
-    return findLeafNode(node->children[childIndex], x, y);
+    int child_index = (x < mid_x) ? 0 : 1;
+    return findLeafNode(node->children[child_index], x, y);
   } else {
     int mid_x = node->x + node->width / 2;
     int mid_y = node->y + node->height / 2;
@@ -396,68 +433,41 @@ std::vector<QuadTreeNode *> QuadTree::getAdjacentLeafNodes(int x, int y) {
     return {};
 
   std::vector<QuadTreeNode *> adjacent_nodes;
-  std::unordered_set<QuadTreeNode *> unique_nodes;
-
-  int left = target_node->x;
-  int right = target_node->x + target_node->width - 1;
-  int top = target_node->y;
-  int bottom = target_node->y + target_node->height - 1;
-
-  if (left > 0) {
-    int y_pos = top;
-    while (y_pos <= bottom) {
-      QuadTreeNode *node = findLeafNode(root, left - 1, y_pos);
-      if (node && node != target_node &&
-          unique_nodes.find(node) == unique_nodes.end()) {
-        adjacent_nodes.push_back(node);
-        unique_nodes.insert(node);
-        y_pos += node->height;
-      } else {
-        y_pos++;
-      }
-    }
-  }
-
-  int y_pos = top;
-  while (y_pos <= bottom) {
-    QuadTreeNode *node = findLeafNode(root, right + 1, y_pos);
-    if (node && node != target_node &&
-        unique_nodes.find(node) == unique_nodes.end()) {
-      adjacent_nodes.push_back(node);
-      unique_nodes.insert(node);
-      y_pos += node->height;
-    } else {
-      y_pos++;
-    }
-  }
-
-  if (top > 0) {
-    int x_pos = left;
-    while (x_pos <= right) {
-      QuadTreeNode *node = findLeafNode(root, x_pos, top - 1);
-      if (node && node != target_node &&
-          unique_nodes.find(node) == unique_nodes.end()) {
-        adjacent_nodes.push_back(node);
-        unique_nodes.insert(node);
-        x_pos += node->width;
-      } else {
-        x_pos++;
-      }
-    }
-  }
-
-  int x_pos = left;
-  while (x_pos <= right) {
-    QuadTreeNode *node = findLeafNode(root, x_pos, bottom + 1);
-    if (node && node != target_node &&
-        unique_nodes.find(node) == unique_nodes.end()) {
-      adjacent_nodes.push_back(node);
-      unique_nodes.insert(node);
-      x_pos += node->width;
-    } else {
-      x_pos++;
-    }
-  }
-
+  findAdjacentLeafNodesRecursive(root, target_node, adjacent_nodes);
   return adjacent_nodes;
+}
+
+void QuadTree::findAdjacentLeafNodesRecursive(
+    QuadTreeNode *node, QuadTreeNode *target_node,
+    std::vector<QuadTreeNode *> &adjacent_nodes) {
+  if (!node)
+    return;
+
+  if (node->is_leaf) {
+    if (node != target_node && areNodesAdjacent(node, target_node)) {
+      adjacent_nodes.push_back(node);
+    }
+    return;
+  }
+
+  for (int i = 0; i < 4; i++) {
+    if (node->children[i] &&
+        couldContainAdjacentNodes(node->children[i], target_node)) {
+      findAdjacentLeafNodesRecursive(node->children[i], target_node,
+                                     adjacent_nodes);
+    }
+  }
+}
+
+bool QuadTree::couldContainAdjacentNodes(QuadTreeNode *node,
+                                         QuadTreeNode *target_node) {
+  int expanded_x = target_node->x - 1;
+  int expanded_y = target_node->y - 1;
+  int expanded_width = target_node->width + 2;
+  int expanded_height = target_node->height + 2;
+
+  return !(expanded_x + expanded_width <= node->x ||
+           expanded_y + expanded_height <= node->y ||
+           expanded_x >= node->x + node->width ||
+           expanded_y >= node->y + node->height);
 }
