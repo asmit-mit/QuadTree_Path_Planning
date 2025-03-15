@@ -23,14 +23,14 @@ Traditional grid-based representations in robotics, such as ROS1 Occupancy Grids
 ### Visual Comparison
 
 ![A* on Grid](grid_planning.gif)
-*Figure 1: A* path planning on standard grid.*
+*Figure 1: A* path planning on standard grid.
 
 ![A* on Quadtree(Max Depth 8)](max_depth_8.gif)
-*Figure 2: A* path planning on quadtree of max depth 8.*
+*Figure 2: A* path planning on quadtree of max depth 8.
 
 
 ![A* on QuadTree(Infinite Depth)](max_depth_infinite.gif)
-*Figure 3: A* path planning on quadtree of infinite depth.*
+*Figure 3: A* path planning on quadtree of infinite depth.
 
 ### Key Observations
 
