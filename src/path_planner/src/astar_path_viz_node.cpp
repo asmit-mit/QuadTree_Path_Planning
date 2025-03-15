@@ -118,7 +118,7 @@ void goalCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
   AstarPlanner planner(current_grid);
   AstarQuadTreePlanner planenrq(quadtree);
 
-  current_path = planner.plan(0, 0, end_x, end_y);
+  /* current_path = planner.plan(0, 0, end_x, end_y); */
   current_path_quadtree = planenrq.plan(0, 0, end_x, end_y);
   ROS_INFO("General Astar planned path with %ld steps", current_path.size());
   ROS_INFO("QuadTree Astar planned path with %ld steps",
