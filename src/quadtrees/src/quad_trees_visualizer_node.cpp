@@ -181,7 +181,7 @@ void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
 
   ROS_INFO("Map built successfully.");
   if (!quad_tree) {
-    quad_tree = new QuadTree();
+    quad_tree = new QuadTree(6);
   }
   quad_tree->build(grid);
 

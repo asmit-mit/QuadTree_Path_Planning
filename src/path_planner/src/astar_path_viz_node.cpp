@@ -1,3 +1,5 @@
+#include <chrono>
+#include <cmath>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
@@ -118,11 +120,50 @@ void goalCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
   AstarPlanner planner(current_grid);
   AstarQuadTreePlanner planenrq(quadtree);
 
-  /* current_path = planner.plan(0, 0, end_x, end_y); */
+  // Measure time for the general A* planner
+  auto start_general = std::chrono::high_resolution_clock::now();
+  current_path = planner.plan(0, 0, end_x, end_y);
+  auto end_general = std::chrono::high_resolution_clock::now();
+  auto duration_general = std::chrono::duration_cast<std::chrono::microseconds>(
+                              end_general - start_general)
+                              .count();
+
+  double path_size = 0;
+  for (int i = 0; i < current_path.size() - 1; i++) {
+    std::pair<int, int> p1 = current_path[i];
+    std::pair<int, int> p2 = current_path[i + 1];
+    double dx = p1.first - p2.first;
+    double dy = p1.second - p2.second;
+    path_size += std::sqrt(dx * dx + dy * dy);
+  }
+
+  ROS_INFO(
+      "General Astar planned path with %ld steps with %f distance covered.",
+      current_path.size(), path_size);
+  ROS_INFO("Time taken by General Astar: %ld microseconds", duration_general);
+
+  // Measure time for the QuadTree A* planner
+  auto start_quadtree = std::chrono::high_resolution_clock::now();
   current_path_quadtree = planenrq.plan(0, 0, end_x, end_y);
-  ROS_INFO("General Astar planned path with %ld steps", current_path.size());
-  ROS_INFO("QuadTree Astar planned path with %ld steps",
-           current_path_quadtree.size());
+  auto end_quadtree = std::chrono::high_resolution_clock::now();
+  auto duration_quadtree =
+      std::chrono::duration_cast<std::chrono::microseconds>(end_quadtree -
+                                                            start_quadtree)
+          .count();
+
+  path_size = 0;
+  for (int i = 0; i < current_path_quadtree.size() - 1; i++) {
+    std::pair<int, int> p1 = current_path_quadtree[i];
+    std::pair<int, int> p2 = current_path_quadtree[i + 1];
+    double dx = p1.first - p2.first;
+    double dy = p1.second - p2.second;
+    path_size += std::sqrt(dx * dx + dy * dy);
+  }
+
+  ROS_INFO(
+      "QuadTree Astar planned path with %ld steps with %f distance covered.",
+      current_path_quadtree.size(), path_size);
+  ROS_INFO("Time taken by QuadTree Astar: %ld microseconds", duration_quadtree);
 }
 
 void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
