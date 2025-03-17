@@ -1,0 +1,3 @@
+[submodule "src/quadtrees"]
+	path = src/quadtrees
+	url = https://github.com/asmit-mit/quadtrees.git
