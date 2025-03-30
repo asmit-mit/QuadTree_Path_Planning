@@ -3,7 +3,7 @@
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
-#include <path_planner/AstarPlanner.h>
+#include <path_planner/AstarQuadTreePlanner.h>
 #include <quadtrees/QuadTree.h>
 #include <ros/ros.h>
 #include <string>
@@ -12,11 +12,13 @@
 
 using std::vector;
 
-ros::Publisher marker_pub;
+ros::Publisher quadtree_marker_pub;
 std::string global_frame_id = "map";
-std::vector<std::pair<int, int>> current_path;
-std::vector<std::vector<int>> current_grid;
+std::vector<std::pair<int, int>> current_path_quadtree;
+
 nav_msgs::OccupancyGrid::ConstPtr current_map;
+
+QuadTree *quadtree = nullptr;
 
 void visualizePath(std::vector<std::pair<int, int>> path, ros::Publisher pub) {
   visualization_msgs::MarkerArray marker_array;
@@ -112,33 +114,35 @@ void goalCallback(const geometry_msgs::PoseStamped::ConstPtr &msg) {
   }
   ROS_INFO("Map X: %d Y: %d", end_x, end_y);
 
-  AstarPlanner planner(current_grid);
+  AstarQuadTreePlanner planner(quadtree);
 
-  auto start_general = std::chrono::high_resolution_clock::now();
-  current_path = planner.plan(0, 0, end_x, end_y);
-  auto end_general = std::chrono::high_resolution_clock::now();
-  auto duration_general = std::chrono::duration_cast<std::chrono::microseconds>(
-                              end_general - start_general)
-                              .count();
+  auto start_quadtree = std::chrono::high_resolution_clock::now();
+  current_path_quadtree = planner.plan(0, 0, end_x, end_y);
+  auto end_quadtree = std::chrono::high_resolution_clock::now();
+  auto duration_quadtree =
+      std::chrono::duration_cast<std::chrono::microseconds>(end_quadtree -
+                                                            start_quadtree)
+          .count();
 
   double path_size = 0;
-  for (int i = 0; i < current_path.size() - 1; i++) {
-    std::pair<int, int> p1 = current_path[i];
-    std::pair<int, int> p2 = current_path[i + 1];
+  for (int i = 0; i < current_path_quadtree.size() - 1; i++) {
+    std::pair<int, int> p1 = current_path_quadtree[i];
+    std::pair<int, int> p2 = current_path_quadtree[i + 1];
     double dx = p1.first - p2.first;
     double dy = p1.second - p2.second;
     path_size += std::sqrt(dx * dx + dy * dy);
   }
 
   ROS_INFO(
-      "General Astar planned path with %ld steps with %f distance covered.",
-      current_path.size(), path_size);
-  ROS_INFO("Time taken by General Astar: %ld microseconds", duration_general);
+      "QuadTree Astar planned path with %ld steps with %f distance covered.",
+      current_path_quadtree.size(), path_size);
+  ROS_INFO("Time taken by QuadTree Astar: %ld microseconds", duration_quadtree);
 }
 
 void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
   ROS_INFO("Received map metadata:");
   ROS_INFO("Width: %d, Height: %d", msg->info.width, msg->info.height);
+
   current_map = msg;
 
   int width = msg->info.width;
@@ -152,11 +156,18 @@ void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
     }
   }
 
-  current_grid = grid;
+  if (!quadtree) {
+    quadtree = new QuadTree();
+  }
+
+  quadtree->build(grid);
+
+  ROS_INFO("Built map with %dx%d in %d node QuadTree.", width, height,
+           quadtree->getNumLeaves());
 }
 
 int main(int argc, char **argv) {
-  ros::init(argc, argv, "astar_path_viz_node");
+  ros::init(argc, argv, "start_quadtree_path_viz_node");
   ros::NodeHandle nh;
   ros::NodeHandle private_nh("~");
 
@@ -164,7 +175,8 @@ int main(int argc, char **argv) {
   double publish_rate;
   private_nh.param<double>("publish_rate", publish_rate, 10.0);
 
-  marker_pub = nh.advertise<visualization_msgs::MarkerArray>("path_markers", 1);
+  quadtree_marker_pub =
+      nh.advertise<visualization_msgs::MarkerArray>("quadtree_path_markers", 1);
 
   ros::Subscriber map_sub = nh.subscribe("/map", 10, mapCallback);
   ros::Subscriber goal_sub =
@@ -174,8 +186,8 @@ int main(int argc, char **argv) {
 
   ros::Rate rate(publish_rate);
   while (ros::ok()) {
-    if (current_path.size() != 0)
-      visualizePath(current_path, marker_pub);
+    if (current_path_quadtree.size() != 0)
+      visualizePath(current_path_quadtree, quadtree_marker_pub);
     ros::spinOnce();
     rate.sleep();
   }

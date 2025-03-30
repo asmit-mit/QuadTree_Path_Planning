@@ -157,7 +157,10 @@ catkin_package(INCLUDE_DIRS include)
 
 include_directories(include ${catkin_INCLUDE_DIRS})
 
-add_executable(
-  astar_path_viz_node src/astar_path_viz_node.cpp src/AstarPlanner.cpp
-                      src/AstarQuadTreePlanner.cpp)
+add_executable(astar_path_viz_node src/astar_path_viz_node.cpp
+                                   src/AstarPlanner.cpp)
 target_link_libraries(astar_path_viz_node ${catkin_LIBRARIES})
+
+add_executable(astar_quadtree_path_viz_node src/astar_quadtree_viz_node.cpp
+                                            src/AstarQuadTreePlanner.cpp)
+target_link_libraries(astar_quadtree_path_viz_node ${catkin_LIBRARIES})
