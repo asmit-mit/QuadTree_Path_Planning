@@ -157,7 +157,7 @@ void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg) {
   }
 
   if (!quadtree) {
-    quadtree = new QuadTree();
+    quadtree = new QuadTree(10);
   }
 
   quadtree->build(grid);

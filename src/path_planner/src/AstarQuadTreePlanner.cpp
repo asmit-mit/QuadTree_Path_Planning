@@ -78,9 +78,13 @@ AstarQuadTreePlanner::plan(int start_x, int start_y, int end_x, int end_y) {
     return path;
   }
 
+  int width = graph->root->width;
+  int height = graph->root->height;
+  int offset_x = graph->root->x;
+  int offset_y = graph->root->y;
+
   std::priority_queue<Node *, std::vector<Node *>, Comparator> pq;
-  std::unordered_map<int, std::unordered_map<int, Node *>> nodes_map;
-  std::unordered_map<int, std::unordered_map<int, bool>> visited;
+  std::vector<Node *> nodes_grid(width * height, nullptr);
 
   QuadTreeNode *start_tree_node =
       graph->findLeafNode(graph->root, start_x, start_y);
@@ -90,8 +94,11 @@ AstarQuadTreePlanner::plan(int start_x, int start_y, int end_x, int end_y) {
   Node *start_node = new Node(start_tree_node);
   start_node->g_cost = 0;
   start_node->f_cost = heuristic(start_x, start_y, end_x, end_y);
+
   pq.push(start_node);
-  nodes_map[start_tree_node->x][start_tree_node->y] = start_node;
+  int start_idx =
+      (start_tree_node->y - offset_y) * width + (start_tree_node->x - offset_x);
+  nodes_grid[start_idx] = start_node;
 
   while (!pq.empty()) {
     Node *curr = pq.top();
@@ -99,11 +106,11 @@ AstarQuadTreePlanner::plan(int start_x, int start_y, int end_x, int end_y) {
 
     int curr_x = curr->tree_node->x;
     int curr_y = curr->tree_node->y;
+    int curr_idx = (curr_y - offset_y) * width + (curr_x - offset_x);
 
-    if (visited[curr_x][curr_y])
+    if (nodes_grid[curr_idx] != curr) {
       continue;
-
-    visited[curr_x][curr_y] = true;
+    }
 
     if (nodeContainsPoint(curr, end_x, end_y)) {
       while (curr != nullptr) {
@@ -116,10 +123,8 @@ AstarQuadTreePlanner::plan(int start_x, int start_y, int end_x, int end_y) {
       std::reverse(path.begin(), path.end());
       path.push_back(std::make_pair(end_x, end_y));
 
-      for (auto &row : nodes_map) {
-        for (auto &col : row.second) {
-          delete col.second;
-        }
+      for (Node *node : nodes_grid) {
+        delete node;
       }
 
       path[0] = std::make_pair(start_x, start_y);
@@ -132,8 +137,9 @@ AstarQuadTreePlanner::plan(int start_x, int start_y, int end_x, int end_y) {
     for (auto tree_node : neighbor_tree_nodes) {
       int nx = tree_node->x;
       int ny = tree_node->y;
+      int neighbor_idx = (ny - offset_y) * width + (nx - offset_x);
 
-      if (tree_node->value == 100 || visited[nx][ny]) {
+      if (tree_node->value == 100) {
         continue;
       }
 
@@ -146,15 +152,14 @@ AstarQuadTreePlanner::plan(int start_x, int start_y, int end_x, int end_y) {
                                        pow(next_center_y - curr_center_y, 2));
       double new_g_cost = curr->g_cost + movement_cost;
 
-      Node *neighbor;
-      if (nodes_map[nx].find(ny) == nodes_map[nx].end()) {
-        neighbor = new Node(tree_node);
-        nodes_map[nx][ny] = neighbor;
-      } else {
-        neighbor = nodes_map[nx][ny];
-      }
+      Node *neighbor = nodes_grid[neighbor_idx];
 
-      if (new_g_cost < neighbor->g_cost) {
+      if (neighbor == nullptr || new_g_cost < neighbor->g_cost) {
+        if (neighbor == nullptr) {
+          neighbor = new Node(tree_node);
+          nodes_grid[neighbor_idx] = neighbor;
+        }
+
         neighbor->parent = curr;
         neighbor->g_cost = new_g_cost;
         neighbor->f_cost = new_g_cost + heuristic(nx, ny, end_x, end_y);
@@ -163,10 +168,8 @@ AstarQuadTreePlanner::plan(int start_x, int start_y, int end_x, int end_y) {
     }
   }
 
-  for (auto &row : nodes_map) {
-    for (auto &col : row.second) {
-      delete col.second;
-    }
+  for (Node *node : nodes_grid) {
+    delete node;
   }
 
   return path;

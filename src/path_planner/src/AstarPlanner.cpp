@@ -60,13 +60,19 @@ std::vector<std::pair<int, int>> AstarPlanner::plan(int start_x, int start_y,
 
   std::priority_queue<Node *, std::vector<Node *>, Comparator> pq;
   pq.push(start_node);
-  std::unordered_map<int, std::unordered_map<int, Node *>> parent;
-  std::unordered_map<int, std::unordered_map<int, bool>> visited;
-  parent[start_x][start_y] = start_node;
+  std::vector<Node *> grid_data(width * height, nullptr);
+
+  grid_data[start_y * width + start_x] = start_node;
 
   while (!pq.empty()) {
     Node *current = pq.top();
     pq.pop();
+
+    int current_idx = current->y * width + current->x;
+
+    if (grid_data[current_idx] != current) {
+      continue;
+    }
 
     if (current->x == end_x && current->y == end_y) {
       while (current != nullptr) {
@@ -75,48 +81,46 @@ std::vector<std::pair<int, int>> AstarPlanner::plan(int start_x, int start_y,
       }
       std::reverse(path.begin(), path.end());
 
-      for (auto &row : parent) {
-        for (auto &col : row.second) {
-          delete col.second;
-        }
+      for (Node *node : grid_data) {
+        delete node;
       }
       return path;
     }
 
-    visited[current->x][current->y] = true;
-
     for (int i = 0; i < 8; i++) {
       int nx = current->x + directions[i][0];
       int ny = current->y + directions[i][1];
+      int neighbor_idx = ny * width + nx;
 
-      if (!isValid(nx, ny) || visited[nx][ny]) {
+      if (!isValid(nx, ny)) {
         continue;
       }
 
       double movement_cost = (i < 4) ? 1.0 : 1.414;
       double new_g_cost = current->g_cost + movement_cost;
-      Node *neighbor;
 
-      if (parent[nx].find(ny) == parent[nx].end()) {
-        neighbor = new Node(nx, ny);
-        parent[nx][ny] = neighbor;
-      } else {
-        neighbor = parent[nx][ny];
-      }
-
-      if (new_g_cost < neighbor->g_cost) {
+      if (grid_data[neighbor_idx] == nullptr) {
+        Node *neighbor = new Node(nx, ny);
         neighbor->parent = current;
         neighbor->g_cost = new_g_cost;
         neighbor->f_cost = new_g_cost + heuristic(neighbor, end_node);
+
+        grid_data[neighbor_idx] = neighbor;
         pq.push(neighbor);
+      } else {
+        Node *neighbor = grid_data[neighbor_idx];
+        if (new_g_cost < neighbor->g_cost) {
+          neighbor->parent = current;
+          neighbor->g_cost = new_g_cost;
+          neighbor->f_cost = new_g_cost + heuristic(neighbor, end_node);
+          pq.push(neighbor);
+        }
       }
     }
   }
 
-  for (auto &row : parent) {
-    for (auto &col : row.second) {
-      delete col.second;
-    }
+  for (Node *node : grid_data) {
+    delete node;
   }
   return path;
 }
